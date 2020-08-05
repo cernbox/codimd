@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<info>
+    <id>codimd</id>
+    <name>CodiMD</name>
+    <description>CodiMD Viewer</description>
+    <licence>AGPL</licence>
+    <author>Hugo Gonzalez Labrador (CERN)</author>
+    <version>0.0.1</version>
+    <namespace>CodiMD</namespace>
+    <category>other</category>
+    <dependencies>
+        <owncloud min-version="8.2.2" />
+    </dependencies>
+</info>
