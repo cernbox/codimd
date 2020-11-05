@@ -70,11 +70,11 @@
         }
         filename = data.dir + "/" + basename;
 
-        _open(filename, canedit);
+        _open(filename, canedit, false);
     };
 
 
-    var _open = function(filename, canedit) {
+    var _open = function(filename, canedit, forceIFrame) {
 
         var data = { filename: filename };
         var url = "";
@@ -94,7 +94,7 @@
 
                 var open_url = (canedit ? codimdApp.edit : codimdApp.view) + "?WOPISrc=" + encodeURI(response.wopi_src);
 
-                if (iFrame) {
+                if (forceIFrame || iFrame) {
                     setView(open_url);
                 } else {
                     window.open(open_url, '_blank');
@@ -126,7 +126,7 @@
 		line-height: 1.42857143;
 		border-radius: 4px;
 		background: #fff;
-	">⇽ &nbsp;Return to files</div></span></div>`;
+	">⇽ &nbsp;Return</div></span></div>`;
         $('#content').append(view);
 
         var frameholder = document.getElementById('frameholder');
@@ -144,6 +144,7 @@
         $('#preview').hide();
 
         $("#codimd_close").on('click', function() {
+            office_frame.src = "about:blank"; // force redirect so that the page knows it closed?
             $("#office_container").remove();
             $('#preview').show();
         });
@@ -161,7 +162,7 @@
         defaultMimes.forEach(defaultmime => {
             if (mime === defaultmime) {
 
-                _open(filename, false);
+                _open(filename, false, true);
             }
         })
 
