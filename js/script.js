@@ -196,7 +196,7 @@
 
                 menu.addMenuEntry({
                     id: "md",
-                    displayName: t(OCA.Collabora.AppName, "CodiMD file (md)"),
+                    displayName: t(OCA.CodiMD.AppName, "CodiMD file (md)"),
                     templateName: 'New MD file.md',
                     iconClass: "icon-file",
                     fileType: "file",
@@ -204,7 +204,7 @@
                         fileList.createFile(name)
                             .then(function(status, data) {
 
-                                var row = OC.Notification.show(t(OCA.Collabora.AppName, "File created"));
+                                var row = OC.Notification.show(t(OCA.CodiMD.AppName, "File created"));
                                 setTimeout(function() {
                                     OC.Notification.hide(row);
                                 }, 3000);
