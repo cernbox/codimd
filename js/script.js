@@ -1,16 +1,5 @@
-/**
- * ownCloud - codimd
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Hugo Gonzalez Labrador (CERN) <hugo.gonzalez.labrador@cern.ch>
- * @copyright Hugo Gonzalez Labrador (CERN) 2017
- */
 
-(function($, OC, OCA) { // just put CodiMD in global namespace so 
-
-    var iFrame = true;
+(function($, OC, OCA) { // just put CodiMD in global namespace 
 
     OCA.CodiMD = {};
 
@@ -20,13 +9,13 @@
 
     var codimdApp;
 
-    var loadConfig = function() {
+    var loadConfig = function(to_execute) {
         // For now just use the endpoints provided by wopi
         var url = OC.generateUrl('/apps/wopiviewer/config');
         $.get(url).success(function(response) {
                 try {
                     codimdApp = response['.md'];
-                    loadPublicLink();
+                    to_execute();
                 } catch (error) {
                     OC.Notification.showTemporary("Failed to load CodiMD");
                     console.error('Failed to load CodiMD endpoint', error);
@@ -63,70 +52,91 @@
             return;
         }
 
-        var canedit = false;
+        var path = 'view';
         var permissions = data.$file.attr("data-permissions");
         if (permissions > 1) { // > 1 write permissions
-            canedit = true;
+            path = 'edit';
         }
         filename = data.dir + "/" + basename;
 
-        _open(filename, canedit, false);
+        if (isPublicPage()) {
+            var token = getSharingToken();
+            url = OC.generateUrl('/apps/codimd/public/' + token + '/' + path + filename + '?X-Access-Token=' + getPublicLinkAccessToken());
+        } else {
+            url = OC.generateUrl('/apps/codimd/' + path + filename);
+        }
+
+        window.open(url, '_blank');
     };
 
 
-    var _open = function(filename, canedit, forceIFrame) {
+    var _open = function(filename, canedit, iFrame) {
 
         var data = { filename: filename };
         var url = "";
-        // check if we are on a public page
-        if (isPublicPage()) {
-            var token = getSharingToken();
+        var headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+        // the link is from a public page (but not a public link preview)
+        if (typeof pl_token !== 'undefined') {
             url = OC.generateUrl('/apps/wopiviewer/publicopen');
+            data['token'] = pl_token;
+            data['folderurl'] = parent.location.protocol + '//' + location.host + OC.generateUrl('/s/') + pl_token + '?path=' + OC.dirname(data.filename);
+            headers['X-Access-Token'] = getUrlParameter('X-Access-Token');
+        } else if (isPublicPage()) {
+            url = OC.generateUrl('/apps/wopiviewer/publicopen');
+            var token = getSharingToken();
             data['token'] = token;
             data['folderurl'] = parent.location.protocol + '//' + location.host + OC.generateUrl('/s/') + token + '?path=' + OC.dirname(data.filename);
+            headers['X-Access-Token'] = getPublicLinkAccessToken();
         } else {
             url = OC.generateUrl('/apps/wopiviewer/open');
             data['folderurl'] = parent.location.protocol + '//' + location.host + OC.generateUrl('/apps/files/?dir=' + OC.dirname(data.filename));
+            headers['X-Access-Token'] = OC["X-Access-Token"];
         }
 
-        $.post(url, data).success(function(response) {
+        // Use fetch instead of XMLHttpRequest to avoid having leftoverrs from OC...
+        fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: new URLSearchParams(data)
+        }).then(response => response.json())
+        .then(function(response) {
             if (response.wopi_src) {
-
                 var open_url = (canedit ? codimdApp.edit : codimdApp.view) + "?WOPISrc=" + encodeURI(response.wopi_src);
-
-                if (forceIFrame || iFrame) {
-                    setView(open_url);
-                } else {
-                    window.open(open_url, '_blank');
-                }
-
-            } else {
-                console.error(response.error);
+                setView(open_url, iFrame);
             }
+        }, function() {
+            $('#loader').html('Failed to load the file. Does it exist?');
         });
+    };
+
+    var getPublicLinkAccessToken = function() {
+        var data = $("data[key='cernboxauthtoken']");
+        return data.attr('x-access-token');
     }
 
-    var setView = function(actionURL) {
+    var setView = function(actionURL, isEmbbedded) {
+
         var view = `<div id="office_container"><span id="frameholder"><div id="codimd_close" style="
-		z-index: 200;
-		position: absolute;
-		display: inline-block;
-		top: 0;
-		margin-top: 8px;
-		right: 400px;
-		font-weight: 400;
-		text-align: center;
-		-ms-touch-action: manipulation;
-		touch-action: manipulation;
-		cursor: pointer;
-		background-image: none;
-		border: 1px solid #ccc;
-		padding: 6px 12px;
-		font-size: 14px;
-		line-height: 1.42857143;
-		border-radius: 4px;
-		background: #fff;
-	">⇽ &nbsp;Return</div></span></div>`;
+            z-index: 200;
+            position: absolute;
+            display: none;
+            top: 0;
+            margin-top: 8px;
+            right: 400px;
+            font-weight: 400;
+            text-align: center;
+            -ms-touch-action: manipulation;
+            touch-action: manipulation;
+            cursor: pointer;
+            background-image: none;
+            border: 1px solid #ccc;
+            padding: 6px 12px;
+            font-size: 14px;
+            line-height: 1.42857143;
+            border-radius: 4px;
+            background: #fff;
+        ">⇽ &nbsp;Return</div></span></div>`;
         $('#content').append(view);
 
         var frameholder = document.getElementById('frameholder');
@@ -143,11 +153,14 @@
         frameholder.appendChild(office_frame);
         $('#preview').hide();
 
-        $("#codimd_close").on('click', function() {
-            office_frame.src = "about:blank"; // force redirect so that the page knows it closed?
-            $("#office_container").remove();
-            $('#preview').show();
-        });
+        if (isEmbbedded) {
+            $("#codimd_close").css('display', 'inline-block');
+            $("#codimd_close").on('click', function() {
+                office_frame.src = "about:blank"; // force redirect so that the page knows it closed?
+                $("#office_container").remove();
+                $('#preview').show();
+            });
+        }
     };
 
     var loadPublicLink = function() {
@@ -161,7 +174,6 @@
 
         defaultMimes.forEach(defaultmime => {
             if (mime === defaultmime) {
-
                 _open(filename, false, true);
             }
         })
@@ -176,49 +188,58 @@
 
 
     $(document).ready(function() {
-        loadConfig();
 
-        if (OCA.Files != null) {
-            for (i = 0; i < defaultMimes.length; ++i) {
-                OCA.Files.fileActions.register(defaultMimes[i], 'Open in CodiMD', OC.PERMISSION_READ, OC.imagePath('codimd', 'app.svg'), sendOpen);
-                OCA.Files.fileActions.setDefault(defaultMimes[i], 'Open in CodiMD');
-            }
-        }
+        loadConfig(function() {
 
-
-        OC.Plugins.register("OCA.Files.NewFileMenu", {
-            attach: function(menu) {
-                var fileList = menu.fileList;
-
-                if (fileList.id !== "files") {
-                    return;
+            if (typeof open_file !== 'undefined') {
+                if (this_app === "codimd") {
+                    _open(open_file, open_file_type === "edit", false);
                 }
+            } else {
 
-                menu.addMenuEntry({
-                    id: "md",
-                    displayName: t(OCA.CodiMD.AppName, "CodiMD file (md)"),
-                    templateName: 'New MD file.md',
-                    iconClass: "icon-file",
-                    fileType: "file",
-                    actionHandler: function(name) {
-                        fileList.createFile(name)
-                            .then(function(status, data) {
+                loadPublicLink();
 
-                                var row = OC.Notification.show(t(OCA.CodiMD.AppName, "File created"));
-                                setTimeout(function() {
-                                    OC.Notification.hide(row);
-                                }, 3000);
-
-                                var selector = 'tr[data-file="' + name + '"]';
-                                fileList.$container.find(selector).find("span.nametext").click();
-                            }, function() {
-                                OC.Notification.show(t('files', 'Could not create file "{file}"', { file: name }), { type: 'error' });
-                            });
+                if (OCA.Files != null) {
+                    for (i = 0; i < defaultMimes.length; ++i) {
+                        OCA.Files.fileActions.register(defaultMimes[i], 'Open in CodiMD', OC.PERMISSION_READ, OC.imagePath('codimd', 'app.svg'), sendOpen);
+                        OCA.Files.fileActions.setDefault(defaultMimes[i], 'Open in CodiMD');
                     }
-                });
+
+                    OC.Plugins.register("OCA.Files.NewFileMenu", {
+                        attach: function(menu) {
+                            var fileList = menu.fileList;
+
+                            if (fileList.id !== "files") {
+                                return;
+                            }
+
+                            menu.addMenuEntry({
+                                id: "md",
+                                displayName: t(OCA.CodiMD.AppName, "CodiMD file (md)"),
+                                templateName: 'New MD file.md',
+                                iconClass: "icon-file",
+                                fileType: "file",
+                                actionHandler: function(name) {
+                                    fileList.createFile(name)
+                                        .then(function(status, data) {
+
+                                            var row = OC.Notification.show(t(OCA.CodiMD.AppName, "File created"));
+                                            setTimeout(function() {
+                                                OC.Notification.hide(row);
+                                            }, 3000);
+
+                                            var selector = 'tr[data-file="' + name + '"]';
+                                            fileList.$container.find(selector).find("span.nametext").click();
+                                        }, function() {
+                                            OC.Notification.show(t('files', 'Could not create file "{file}"', { file: name }), { type: 'error' });
+                                        });
+                                }
+                            });
+                        }
+                    });
+                }
             }
         });
-
     });
 
 })(jQuery, OC, OCA);
