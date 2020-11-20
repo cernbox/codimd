@@ -117,26 +117,7 @@
 
     var setView = function(actionURL, isEmbbedded) {
 
-        var view = `<div id="office_container"><span id="frameholder"><div id="codimd_close" style="
-            z-index: 200;
-            position: absolute;
-            display: none;
-            top: 0;
-            margin-top: 8px;
-            right: 400px;
-            font-weight: 400;
-            text-align: center;
-            -ms-touch-action: manipulation;
-            touch-action: manipulation;
-            cursor: pointer;
-            background-image: none;
-            border: 1px solid #ccc;
-            padding: 6px 12px;
-            font-size: 14px;
-            line-height: 1.42857143;
-            border-radius: 4px;
-            background: #fff;
-        ">⇽ &nbsp;Return</div></span></div>`;
+        var view = `<div id="office_container"><span id="frameholder"></span></div>`;
         $('#content').append(view);
 
         var frameholder = document.getElementById('frameholder');
@@ -154,12 +135,28 @@
         $('#preview').hide();
 
         if (isEmbbedded) {
-            $("#codimd_close").css('display', 'inline-block');
-            $("#codimd_close").on('click', function() {
-                office_frame.src = "about:blank"; // force redirect so that the page knows it closed?
-                $("#office_container").remove();
-                $('#preview').show();
-            });
+            var span = $('<span/>');
+            
+            var a = $('<a/>')
+                .addClass('button')
+                .on('click', function() {
+                    office_frame.src = 'about:blank'; // force redirect so that the page knows it closed?
+                    $('#office_container').remove();
+                    $('#preview').show();
+                    span.hide();
+                })
+                .appendTo(span);
+
+            $('<img/>')
+                .addClass("svg")
+                .attr('src', '/core/img/actions/close.svg')
+                .appendTo(a);
+
+            $('<span/>')
+                .text("Close Preview")
+                .appendTo(a);
+
+            $('#header .header-right').prepend(span);
         }
     };
 
