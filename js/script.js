@@ -111,7 +111,7 @@
         }).then(response => response.json())
         .then(function(response) {
             if (response.wopi_src) {
-                var open_url = (canedit ? codimdApp.edit : codimdApp.view) + "?WOPISrc=" + encodeURI(response.wopi_src);
+                var open_url = (canedit ? codimdApp.edit : codimdApp.view) + encodeURI(response.wopi_src);
                 setView(open_url, iFrame);
             }
         }, function() {
